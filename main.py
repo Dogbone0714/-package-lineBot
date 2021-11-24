@@ -86,6 +86,6 @@ def main():
 if __name__ == "__main__":
     main()
     message = '康康~~尼的包裹已經到了收發室~~~\n記得去取件！' # 要傳送的訊息內容
-    token = 'qqLURBXqFh05elzHsy84RAqNFjbXd4ZqOeXcqN340gE' # 權杖值
+    token = '' # 權杖值
 
     lineNotifyMessage(token, message)
