@@ -1,0 +1,232 @@
+var spreadSheetConfig = SpreadsheetApp.getActive();
+var sheetConfig = spreadSheetConfig.getSheetByName("參數設定");
+var sheetConfigData = sheetConfig.getSheetValues(1, 2, 8, sheetConfig.getLastColumn() - 1);
+var CHANNEL_ACCESS_TOKEN = sheetConfigData[0][0].replace(/\r?\n|\r/g,"");    //Line Bot 的權杖，並消除換行符號（避免有人複製貼上時複製到換行符號）
+var spreadSheetId = sheetConfigData[2][0];    //要被搜尋的 Google 試算表 ID
+var sheetName = transformArray(sheetConfigData[3]);    //搜尋的工作表名稱
+var searchColumn = transformColumnNum(transformArray(sheetConfigData[4]));    //搜尋第幾欄的資料
+var whiteListMode = sheetConfigData[6][0];    //檢查白名單模式是否啟用
+var whiteList = transformArray(sheetConfigData[7]);  //白名單（允許取得資料的使用者 ID）
+console.log(whiteListMode)
+
+function transformArray(arrayData) {
+  var returnArray = [];
+  for (var i = 0; i < arrayData.length; i++) {
+    if (arrayData[i] !== "" && arrayData[i] !== false && arrayData[i] !== true) {returnArray.push(arrayData[i]);}
+  }
+  return returnArray;
+}
+
+function transformColumnNum(arrayData) {
+  var returnArray = [];
+  var transformStr;
+  var transformNum;
+  for (var i = 0; i < arrayData.length; i++) {
+    transformStr = arrayData[i].toUpperCase();
+    transformNum = 0;
+    for (var j = 0; j < transformStr.length; j++) {
+      transformNum += Math.pow(26, (transformStr.length - j - 1)) * (transformStr.charCodeAt(j) - 64)
+    }
+    returnArray.push(transformNum);
+  }
+  return returnArray;
+}
+
+function doPost(e) {
+  getDatabase();
+  var userData = JSON.parse(e.postData.contents);
+  var replyToken = userData.events[0].replyToken;
+  var allowed = whiteListMode;
+  var clientID;
+  if (userData.events[0].source.type == "user") { clientID = userData.events[0].source.userId;}
+  if (userData.events[0].source.type == "group") {clientID = userData.events[0].source.groupId;}
+  if (userData.events[0].source.type == "room") {clientID = userData.events[0].source.roomId;}
+  if (allowed == true) {
+
+    // 檢查是否是允許的用者提出搜尋需求
+    var allowedUser = whiteList.filter(function(item, index, array){
+      return item.toString() == clientID;
+    });
+
+    //非白名單使用者、新加入使用者或使用者輸入了「FindMyID」關鍵字，則輸出使用者 ID
+    if (allowedUser.length === 0 || userData.events[0].type == "follow" || userData.events[0].type == "join" || (userData.events[0].message && userData.events[0].message.text.toLowerCase() == "findmyid")) {
+      var replyMessage = [{type:"text", text:"您的 " + userData.events[0].source.type + " ID 是「" + clientID + "」，請將此 ID 告知此官方帳號的擁有者加入白名單後才能開始查詢資料。"}];
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      return;
+    }
+  }
+  if (!(userData.events[0].message || userData.events[0].postback)) {return;} //不處理 message 或 postback 以外的訊息
+
+  //當使用者輸入的是文字則進行搜尋功能
+  if (userData.events[0].message && userData.events[0].message.type == "text") {
+    var searchContent = userData.events[0].message.text;
+  }
+  else {
+
+  }
+
+  if(searchContent.indexOf("@綁定 ") == 0){
+    try{
+      var replyMessage = [];
+      searchContent = searchContent.replace("@綁定 ", "");
+      var NameArray = searchContent.split(" ");
+      var replyData = searchSpreadsheet(clientID);
+      if (replyData.length == 0) {
+        ReplySheet(0,clientID,NameArray)
+        replyMessage.push({type:"text", text:"新增綁定\nID：" + clientID + "\n名稱：" + NameArray});
+        sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      }
+      else{
+        ReplySheet(replyData[0][2] + 1,clientID,NameArray);
+        replyMessage.push({type:"text", text:"更新綁定\nID：" + clientID + "\n名稱：" + NameArray});
+        sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      }
+      return;
+    }
+    catch (e) {
+      replyMessage.push({type:"text", text:"格式錯誤：" + e});
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      return;
+    }
+  }
+  else if(searchContent.indexOf("@解除綁定") == 0){
+    var replyData = searchSpreadsheet(clientID);    //把 searchResult 轉換成回復訊息所需要的資料格式，陣列資料格式[是否有圖（0表示沒有，1表示有）, 搜尋字串, 圖片ID（沒圖就是空字串）, 工作表名稱, 搜尋結果的文字訊息, index]
+    var replyMessage = [];
+    if (replyData.length == 0) {
+      replyMessage.push({type:"text", text:"查詢不到你的資料"});
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      return;
+    }
+    else {
+      DeleteSheet(replyData[0][2] + 1)
+      replyMessage.push({type:"text", text:"解除綁定的資料\nID：" + replyData[0][0] + "\n綁定名稱：" + replyData[0][1]});
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+    }
+
+  }
+  else if(searchContent.indexOf("@查詢") == 0){
+    var replyData = searchSpreadsheet(clientID);    //把 searchResult 轉換成回復訊息所需要的資料格式，陣列資料格式[是否有圖（0表示沒有，1表示有）, 搜尋字串, 圖片ID（沒圖就是空字串）, 工作表名稱, 搜尋結果的文字訊息, index]
+    var replyMessage = [];
+    if (replyData.length == 0) {
+      replyMessage.push({type:"text", text:"查詢不到你的資料，請先使用指令\n@綁定 名稱"});
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+      return;
+    }
+    else {
+      replyMessage.push({type:"text", text:"查詢到的資料\nID：" + replyData[0][0] + "\n綁定名稱：" + replyData[0][1]});
+      sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+    }
+
+  }
+
+  var replyData = searchSpreadsheet(clientID);    //把 searchResult 轉換成回復訊息所需要的資料格式，陣列資料格式[是否有圖（0表示沒有，1表示有）, 搜尋字串, 圖片ID（沒圖就是空字串）, 工作表名稱, 搜尋結果的文字訊息, index]
+  var replyMessage = [];
+  if (replyData.length == 0) {
+    replyMessage.push({type:"text", text:"查詢不到「" + clientID + "」的資料"});
+    sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+    return;
+  }
+  // else {
+  //   replyMessage.push({type:"text", text:"查詢到的資料"});
+  //   sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage);
+  // }
+}
+function searchSpreadsheet(searchContent) {
+  var replyData = [];
+  //for (var i = 0; i < sheetName.length; i++) {
+    var searchResultTemp = [];
+    var sheet = spreadSheet.getSheetByName(sheetName[0]);
+    var lastRow = sheet.getLastRow();
+    var lastColumn = sheet.getLastColumn();
+    var sheetData = sheet.getSheetValues(1, 1, lastRow, lastColumn);  //取出工作表裡所有的資料
+    //取出符合搜尋的資料
+    for (var j = 0; j < searchColumn.length; j++){
+      var buffer = [];
+      //從 sheetData 中取出所有符合搜尋關鍵字的資料
+      var searchTemp = sheetData.filter(function(item, index, array){
+        if (item[searchColumn[j] - 1].toString().toLowerCase().indexOf(searchContent.toLowerCase()) != -1){
+          var item_buffer = item;
+          item_buffer = item_buffer.concat(index);
+          buffer = buffer.concat(index);
+          //return item_buffer
+        }
+        return item[searchColumn[j] - 1].toString().toLowerCase().indexOf(searchContent.toLowerCase()) != -1;
+      });
+      for (var k = 0; k < searchTemp.length; k++){
+        searchTemp[k].push(buffer[k])
+      }
+      searchResultTemp = searchResultTemp.concat(searchTemp);
+    }
+    //剔除重複的資料
+    if (searchResultTemp.length > 0) {
+      searchResultTemp = uniqueArrayElement(searchResultTemp);
+      //把表單名稱放入搜尋結果陣列中，如果使用者是啟動跨工作表搜尋時，顯示詳細資料時才不會找不到正確的工作表
+      for (var j = 0; j < searchResultTemp.length; j++) {
+        searchResultTemp[j].push(sheetName[0]);
+      }
+    }
+    //console.log(searchResultTemp);
+    // var sheetdata_buffer = sheetData[0]
+    // for(var m=0;m < sheetdata_buffer.length;m++) {
+    //   var split_buffer = sheetdata_buffer[m].split("\n");
+    //   sheetdata_buffer[m] = split_buffer[0];
+    // }
+    // sheetdata_buffer = sheetdata_buffer.concat("回覆欄位")
+    // searchResultTemp.unshift(sheetdata_buffer);    //把標題列放在最前面，方便結合文字內容時製作標題
+    // console.log(searchResultTemp)
+    // replyData = replyData.concat(convertSearchResultFormat(searchResultTemp, searchContent));
+  //}
+  // return replyData;
+  return searchResultTemp;
+}
+
+function sendReplyMessage(CHANNEL_ACCESS_TOKEN, replyToken, replyMessage) {
+  var url = "https://api.line.me/v2/bot/message/reply";
+  UrlFetchApp.fetch(url, {
+    "headers": {
+      "Content-Type": "application/json; charset=UTF-8",
+      "Authorization": "Bearer " + CHANNEL_ACCESS_TOKEN,
+    },
+    "method": "post",
+    "payload": JSON.stringify({
+      "replyToken": replyToken,
+      "messages": replyMessage,
+    }),
+  });
+}
+
+function ReplySheet(row,clientID,msg) {
+  var sheet = spreadSheet.getSheetByName("ID");
+  var sheetData = sheet.getSheetValues(1, 1, sheet.getLastRow(), sheet.getLastColumn());  //取出工作表裡所有的資料
+  if(row == 0){
+    var lastrow = sheet.getLastRow();
+    for(var i = 1; i < sheetData.length; i++){
+      if(sheetData[i][0] == ""){
+        lastrow = i
+        break;
+      }
+    }
+    sheet.getRange(lastrow + 1,2).setValue(msg);
+    sheet.getRange(lastrow + 1,1).setValue(clientID);
+  }
+  else{
+    sheet.getRange(row,2).setValue(msg);
+    sheet.getRange(row,1).setValue(clientID);
+  }
+}
+function DeleteSheet(row) {
+  var sheet = spreadSheet.getSheetByName("ID");
+  sheet.getRange(row,2).setValue("");
+  sheet.getRange(row,1).setValue("");
+}
+
+function uniqueArrayElement(arrayData) {
+  var result = arrayData.filter(function(element, index, arr){
+    return arr.indexOf(element) === index;
+  });
+  return result;
+}
+
+function getDatabase() {
+  spreadSheet = SpreadsheetApp.openById(spreadSheetId);
+}
