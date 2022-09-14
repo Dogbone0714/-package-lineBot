@@ -2,13 +2,9 @@ import requests
 import os
 import re
 import time
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import smtplib
 import datetime as dt
 from bs4 import BeautifulSoup
-from email.mime.image import MIMEImage
 from pathlib import Path
 from linebot import (
     LineBotApi, WebhookHandler
