@@ -24,7 +24,7 @@ t = dt.datetime # 顯示時間用的
 #------Line Notify------
 def lineNotifyMessage(ID, msg):
 
-    token = 'q3MP3UJKy4sv9mWOAjkueqfJTAre7jAmyH4QPcferhiYMhds1rN9bNa6bwqHg8C4Uw22L4/4u5yyu0nVW4se0N+fcsl94olc23eP5eyUgsPRA+6LIWKrEGfJkuBIvqyG2hzY0gb3IW/qRCfseaemCAdB04t89/1O/w1cDnyilFU=' # 權杖值
+    token = 'CevuEwc722zOiBwgCnJS8yYK12kEa0LVUnMQWlyOMkMNl95vRhZ40SNrCt1Dr3H4S8AgNnLWu7hwEB3f2nblSO/YkbhaItdAWFrUpE0b7Zv0aGuk5E8XCuZMV8RM5pNdipH67O87Nrx5xHUrs+HI0AdB04t89/1O/w1cDnyilFU=' # 權杖值
     line_bot_api = LineBotApi(token)
     line_bot_api.push_message(ID, TextSendMessage(text=msg))
 # -----程式本體----------
@@ -58,7 +58,7 @@ def main():
     while True:
         print('[%s] 開始執行監聽' %t.now())
         gc = pygsheets.authorize(service_account_file='focus-reality-141302-a2fb2c5a77fb.json')
-        survey_url = 'https://docs.google.com/spreadsheets/d/1AlEKG_S-aDqICbuRUZePFbrZo6-VUwRVQTPqQf1PpFo/'
+        survey_url = 'https://docs.google.com/spreadsheets/d/1FcRUwn6r84QHPZRyWcszmF5LquK4wWQq1eLDJOIhE7U/'
         sh = gc.open_by_url(survey_url)
         ws = sh.worksheet_by_title('ID')
         id_list = []
@@ -81,4 +81,4 @@ def main():
 if __name__ == "__main__":
     main()
     message = '康康~~尼的包裹已經到了收發室~~~\n記得去取件！' # 要傳送的訊息內容
-    token = 'q3MP3UJKy4sv9mWOAjkueqfJTAre7jAmyH4QPcferhiYMhds1rN9bNa6bwqHg8C4Uw22L4/4u5yyu0nVW4se0N+fcsl94olc23eP5eyUgsPRA+6LIWKrEGfJkuBIvqyG2hzY0gb3IW/qRCfseaemCAdB04t89/1O/w1cDnyilFU=' # 權杖值
+    token = 'CevuEwc722zOiBwgCnJS8yYK12kEa0LVUnMQWlyOMkMNl95vRhZ40SNrCt1Dr3H4S8AgNnLWu7hwEB3f2nblSO/YkbhaItdAWFrUpE0b7Zv0aGuk5E8XCuZMV8RM5pNdipH67O87Nrx5xHUrs+HI0AdB04t89/1O/w1cDnyilFU=' # 權杖值
